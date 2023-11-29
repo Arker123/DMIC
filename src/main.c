@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr/zephyr.h>
-#include <zephyr/audio/dmic.h>
 #include <zephyr/kernel.h>
+#include <zephyr/audio/dmic.h>
+
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(dmic_sample);
 
@@ -27,26 +27,6 @@ LOG_MODULE_REGISTER(dmic_sample);
 #define MAX_BLOCK_SIZE   BLOCK_SIZE(MAX_SAMPLE_RATE, 2)
 #define BLOCK_COUNT      4
 K_MEM_SLAB_DEFINE_STATIC(mem_slab, MAX_BLOCK_SIZE, BLOCK_COUNT, 4);
-
-int counter = 0;
-
-float audio[32000];
-
-// define wrapper
-static int wrapper_add_data(const void *data, size_t data_size)
-{
-	counter++;
-	printk("wrapper_add_data\n");
-	printk("data_size: %d\n", data_size);
-	printk("counter: %d\n", counter);
-
-	// print the data
-	for (int i = 0; i < data_size; i++) {
-		printk("%d ", ((uint8_t *)data)[i]);
-	}
-
-	return 0;
-}
 
 static int do_pdm_transfer(const struct device *dmic_dev,
 			   struct dmic_cfg *cfg,
@@ -69,8 +49,7 @@ static int do_pdm_transfer(const struct device *dmic_dev,
 		return ret;
 	}
 
-	// for (int i = 0; i < block_count; ++i) {
-	for (int i = 0; i < 21; ++i) {
+	for (int i = 0; i < block_count; ++i) {
 		void *buffer;
 		uint32_t size;
 		int ret;
@@ -83,31 +62,7 @@ static int do_pdm_transfer(const struct device *dmic_dev,
 
 		LOG_INF("%d - got buffer %p of %u bytes", i, buffer, size);
 
-		if(i!=0){
-			printk("i: %d\n", i);
-			int16_t tempInt;
-			float tempFloat;
-			for(int j=0; j<1600; j++){
-				memcpy(&tempInt, buffer + 2*j, 2);
-				tempFloat = (float)tempInt;
-				audio[(i-1)*1600+j] = tempFloat;
-			}
-		}
-
-		// print buffer
-		// for (int i = 0; i < size; i++) {
-		// 	printk("%d ", ((uint8_t *)buffer)[i]);
-		// }
-		// printk("\n");
-
 		k_mem_slab_free(&mem_slab, &buffer);
-
-	}
-
-	ret = wrapper_add_data(&audio, sizeof(audio));
-	if (ret) {
-		LOG_INF("Cannot provide input data (err: %d)\n", ret);
-		LOG_INF("Increase CONFIG_EI_WRAPPER_DATA_BUF_SIZE\n");
 	}
 
 	ret = dmic_trigger(dmic_dev, DMIC_TRIGGER_STOP);
@@ -119,23 +74,18 @@ static int do_pdm_transfer(const struct device *dmic_dev,
 	return ret;
 }
 
-void main(void)
+int main(void)
 {
-	// while(1){
-	printk("DMIC sample started\n");
-	// k_sleep(K_MSEC(1000));
-	// }
-	const struct device *dmic_dev = DEVICE_DT_GET(DT_NODELABEL(dmic_dev));
+	const struct device *const dmic_dev = DEVICE_DT_GET(DT_NODELABEL(dmic_dev));
 	int ret;
 
 	LOG_INF("DMIC sample");
+	printk("OK");
 
 	if (!device_is_ready(dmic_dev)) {
 		LOG_ERR("%s is not ready", dmic_dev->name);
-		return;
+		return 0;
 	}
-
-	printk("DMIC device: %s\n", dmic_dev->name);
 
 	struct pcm_stream_cfg stream = {
 		.pcm_width = SAMPLE_BIT_WIDTH,
@@ -166,24 +116,11 @@ void main(void)
 		BLOCK_SIZE(cfg.streams[0].pcm_rate, cfg.channel.req_num_chan);
 
 	ret = do_pdm_transfer(dmic_dev, &cfg, 2 * BLOCK_COUNT);
-	// ret = do_pdm_transfer(dmic_dev, &cfg, BLOCK_COUNT);
 	if (ret < 0) {
-		return;
+		return 0;
 	}
 
-	// printk("DMIC sample finished\n");
-	LOG_INF("DMIC sample finished\n");
-
-	// print the data
-	// for (int i = 0; i < 2 * BLOCK_COUNT; i++) {
-	// 	printk("%d ", ((uint8_t *)mem_slab)[i]);
-	// }
-	// printk("\n");
-
-	// cfg.channel.req_num_chan = 2;for (int i = 0; i < 2 * BLOCK_COUNT; i++) {
-	// 	printk("%d ", ((uint8_t *)mem_slab)[i]);
-	// }
-	// printk("\n");
+	// cfg.channel.req_num_chan = 2;
 	// cfg.channel.req_chan_map_lo =
 	// 	dmic_build_channel_map(0, 0, PDM_CHAN_LEFT) |
 	// 	dmic_build_channel_map(1, 0, PDM_CHAN_RIGHT);
@@ -192,12 +129,10 @@ void main(void)
 	// 	BLOCK_SIZE(cfg.streams[0].pcm_rate, cfg.channel.req_num_chan);
 
 	// ret = do_pdm_transfer(dmic_dev, &cfg, 2 * BLOCK_COUNT);
-
-	// printk("DMIC sample finished\n");
-
 	// if (ret < 0) {
-	// 	return;
+	// 	return 0;
 	// }
 
 	LOG_INF("Exiting");
+	return 0;
 }
