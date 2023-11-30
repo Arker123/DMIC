@@ -15,14 +15,14 @@
 LOG_MODULE_REGISTER(dmic_sample);
 
 /* uncomment if you want PCM output in ascii */
-#define PCM_OUTPUT_IN_ASCII		1
+//#define PCM_OUTPUT_IN_ASCII		1
 
 #define AUDIO_FREQ		16000
 #define CHAN_SIZE		16
 #define PCM_BLK_SIZE_MS		((AUDIO_FREQ/1000) * sizeof(int16_t))
 
-// 5 seconds
-#define NUM_MS		5000
+// 1 seconds
+#define NUM_MS		1000
 
 K_MEM_SLAB_DEFINE(rx_mem_slab, PCM_BLK_SIZE_MS, NUM_MS+10, 1);
 
@@ -99,7 +99,7 @@ int main(void)
 			return 0;
 		}
 		else{
-			LOG_INF("%d microphone audio read success %p %u.\n", ms);
+			LOG_INF("%d microphone audio read success %p %u.\n", ms, rx_block, rx_size);
 		}
 
 	}
