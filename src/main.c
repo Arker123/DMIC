@@ -95,11 +95,11 @@ int main(void)
 	for (ms = 0; ms < NUM_MS; ms++) {
 		ret = dmic_read(mic_dev, 0, &rx_block[ms], &rx_size, 2000);
 		if (ret < 0) {
-			LOG_ERR("%d microphone audio read error %p %u.\n", ms, rx_block, rx_size);
+			LOG_ERR("%d microphone audio read error %p %u.\n", ms, rx_block[ms], rx_size);
 			return 0;
 		}
 		else{
-			LOG_INF("%d microphone audio read success %p %u.\n", ms, rx_block, rx_size);
+			LOG_INF("%d microphone audio read success %p %u.\n", ms, rx_block[ms], rx_size);
 		}
 
 	}
