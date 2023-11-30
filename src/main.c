@@ -1,96 +1,55 @@
 /*
- * Copyright (c) 2021 Nordic Semiconductor ASA
+ * Copyright (c) 2020 STMicroelectronics
  *
  * SPDX-License-Identifier: Apache-2.0
+ * 
+ * @ Arnav Kharbhanda
+ * @ VinayYadav
  */
 
+#include <string.h>
 #include <zephyr/kernel.h>
+#include <zephyr/sys/printk.h>
 #include <zephyr/audio/dmic.h>
-
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(dmic_sample);
 
-#define MAX_SAMPLE_RATE  16000
-#define SAMPLE_BIT_WIDTH 16
-#define BYTES_PER_SAMPLE sizeof(int16_t)
-/* Milliseconds to wait for a block to be read. */
-#define READ_TIMEOUT     1000
+/* uncomment if you want PCM output in ascii */
+#define PCM_OUTPUT_IN_ASCII		1
 
-/* Size of a block for 100 ms of audio data. */
-#define BLOCK_SIZE(_sample_rate, _number_of_channels) \
-	(BYTES_PER_SAMPLE * (_sample_rate / 10) * _number_of_channels)
+#define AUDIO_FREQ		16000
+#define CHAN_SIZE		16
+#define PCM_BLK_SIZE_MS		((AUDIO_FREQ/1000) * sizeof(int16_t))
 
-/* Driver will allocate blocks from this slab to receive audio data into them.
- * Application, after getting a given block from the driver and processing its
- * data, needs to free that block.
- */
-#define MAX_BLOCK_SIZE   BLOCK_SIZE(MAX_SAMPLE_RATE, 2)
-#define BLOCK_COUNT      4
-K_MEM_SLAB_DEFINE_STATIC(mem_slab, MAX_BLOCK_SIZE, BLOCK_COUNT, 4);
+// 5 seconds
+#define NUM_MS		5000
 
-static int do_pdm_transfer(const struct device *dmic_dev,
-			   struct dmic_cfg *cfg,
-			   size_t block_count)
-{
-	int ret;
+K_MEM_SLAB_DEFINE(rx_mem_slab, PCM_BLK_SIZE_MS, NUM_MS+10, 1);
 
-	LOG_INF("PCM output rate: %u, channels: %u",
-		cfg->streams[0].pcm_rate, cfg->channel.req_num_chan);
-
-	ret = dmic_configure(dmic_dev, cfg);
-	if (ret < 0) {
-		LOG_ERR("Failed to configure the driver: %d", ret);
-		return ret;
-	}
-
-	ret = dmic_trigger(dmic_dev, DMIC_TRIGGER_START);
-	if (ret < 0) {
-		LOG_ERR("START trigger failed: %d", ret);
-		return ret;
-	}
-
-	for (int i = 0; i < block_count; ++i) {
-		void *buffer;
-		uint32_t size;
-		int ret;
-
-		ret = dmic_read(dmic_dev, 0, &buffer, &size, READ_TIMEOUT);
-		if (ret < 0) {
-			LOG_ERR("%d - read failed: %d", i, ret);
-			return ret;
-		}
-
-		LOG_INF("%d - got buffer %p of %u bytes", i, buffer, size);
-
-		k_mem_slab_free(&mem_slab, &buffer);
-	}
-
-	ret = dmic_trigger(dmic_dev, DMIC_TRIGGER_STOP);
-	if (ret < 0) {
-		LOG_ERR("STOP trigger failed: %d", ret);
-		return ret;
-	}
-
-	return ret;
-}
+void *rx_block[NUM_MS];
+size_t rx_size = PCM_BLK_SIZE_MS;
 
 int main(void)
 {
-	const struct device *const dmic_dev = DEVICE_DT_GET(DT_NODELABEL(dmic_dev));
+	int i;
+	uint32_t ms;
 	int ret;
 
-	LOG_INF("DMIC sample");
-	printk("OK");
+	LOG_INF("DMIC sample started\n");
 
-	if (!device_is_ready(dmic_dev)) {
-		LOG_ERR("%s is not ready", dmic_dev->name);
+	//const struct device *const mic_dev = DEVICE_DT_GET_ONE(st_mpxxdtyy);
+	const struct device *const mic_dev = DEVICE_DT_GET(DT_NODELABEL(dmic_dev));
+
+	if (!device_is_ready(mic_dev)) {
+		LOG_ERR("%s: device not ready.\n", mic_dev->name);
 		return 0;
 	}
 
 	struct pcm_stream_cfg stream = {
-		.pcm_width = SAMPLE_BIT_WIDTH,
-		.mem_slab  = &mem_slab,
+		.pcm_width = CHAN_SIZE,
+		.mem_slab  = &rx_mem_slab,
 	};
+
 	struct dmic_cfg cfg = {
 		.io = {
 			/* These fields can be used to limit the PDM clock
@@ -111,28 +70,64 @@ int main(void)
 	cfg.channel.req_num_chan = 1;
 	cfg.channel.req_chan_map_lo =
 		dmic_build_channel_map(0, 0, PDM_CHAN_LEFT);
-	cfg.streams[0].pcm_rate = MAX_SAMPLE_RATE;
-	cfg.streams[0].block_size =
-		BLOCK_SIZE(cfg.streams[0].pcm_rate, cfg.channel.req_num_chan);
+	cfg.streams[0].pcm_rate = AUDIO_FREQ;
+	cfg.streams[0].block_size = PCM_BLK_SIZE_MS;
 
-	ret = do_pdm_transfer(dmic_dev, &cfg, 2 * BLOCK_COUNT);
+	ret = dmic_configure(mic_dev, &cfg);
 	if (ret < 0) {
+		LOG_ERR("microphone configuration error\n");
 		return 0;
 	}
+	else{
+		LOG_INF("microphone configuration success\n");
+	}
 
-	// cfg.channel.req_num_chan = 2;
-	// cfg.channel.req_chan_map_lo =
-	// 	dmic_build_channel_map(0, 0, PDM_CHAN_LEFT) |
-	// 	dmic_build_channel_map(1, 0, PDM_CHAN_RIGHT);
-	// cfg.streams[0].pcm_rate = MAX_SAMPLE_RATE;
-	// cfg.streams[0].block_size =
-	// 	BLOCK_SIZE(cfg.streams[0].pcm_rate, cfg.channel.req_num_chan);
+	ret = dmic_trigger(mic_dev, DMIC_TRIGGER_START);
+	if (ret < 0) {
+		LOG_ERR("microphone start trigger error\n");
+		return 0;
+	}
+	else{
+		LOG_INF("microphone start trigger success\n");
+	}
 
-	// ret = do_pdm_transfer(dmic_dev, &cfg, 2 * BLOCK_COUNT);
-	// if (ret < 0) {
-	// 	return 0;
-	// }
+	/* Acquire microphone audio */
+	for (ms = 0; ms < NUM_MS; ms++) {
+		ret = dmic_read(mic_dev, 0, &rx_block[ms], &rx_size, 2000);
+		if (ret < 0) {
+			LOG_ERR("%d microphone audio read error %p %u.\n", ms, rx_block, rx_size);
+			return 0;
+		}
+		else{
+			LOG_INF("%d microphone audio read success %p %u.\n", ms);
+		}
 
-	LOG_INF("Exiting");
+	}
+	
+	ret = dmic_trigger(mic_dev, DMIC_TRIGGER_STOP);
+	if (ret < 0) {
+		LOG_ERR("microphone stop trigger error\n");
+		return 0;
+	}
+	else{
+		LOG_INF("microphone stop trigger success\n");
+	}
+
+	/* print PCM stream */
+#ifdef PCM_OUTPUT_IN_ASCII	
+	printk("-- start\n");
+	int j;
+
+	for (i = 0; i < NUM_MS; i++) {
+		uint16_t *pcm_out = rx_block[i];
+
+		for (j = 0; j < rx_size/2; j++) {
+			printk("0x%04x, \n", pcm_out[j]);
+			k_sleep(K_MSEC(1));			
+		}
+		printk("-- mid\n");
+	}
+	printk("-- end\n");
+#endif
 	return 0;
 }
