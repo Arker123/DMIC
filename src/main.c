@@ -15,16 +15,19 @@
 LOG_MODULE_REGISTER(dmic_sample);
 
 /* uncomment if you want PCM output in ascii */
-#define PCM_OUTPUT_IN_ASCII		1
+//#define PCM_OUTPUT_IN_ASCII		1
 
 #define AUDIO_FREQ		16000
 #define CHAN_SIZE		16
 #define PCM_BLK_SIZE_MS		((AUDIO_FREQ/1000) * sizeof(int16_t))
 
-// 5 seconds
-#define NUM_MS		5000
+#define READ_TIMEOUT_MS		2000
 
-K_MEM_SLAB_DEFINE(rx_mem_slab, PCM_BLK_SIZE_MS, NUM_MS+10, 1);
+// 1 seconds
+#define NUM_MS		1000
+
+// added some extra blocks: 2 for safety
+K_MEM_SLAB_DEFINE(rx_mem_slab, PCM_BLK_SIZE_MS, NUM_MS + 2, 1);
 
 void *rx_block[NUM_MS];
 size_t rx_size = PCM_BLK_SIZE_MS;
@@ -93,13 +96,13 @@ int main(void)
 
 	/* Acquire microphone audio */
 	for (ms = 0; ms < NUM_MS; ms++) {
-		ret = dmic_read(mic_dev, 0, &rx_block[ms], &rx_size, 2000);
+		ret = dmic_read(mic_dev, 0, &rx_block[ms], &rx_size, READ_TIMEOUT_MS);
 		if (ret < 0) {
-			LOG_ERR("%d microphone audio read error %p %u.\n", ms, rx_block, rx_size);
+			LOG_ERR("%d microphone audio read error %p %u.\n", ms, rx_block[ms], rx_size);
 			return 0;
 		}
 		else{
-			LOG_INF("%d microphone audio read success %p %u.\n", ms);
+			LOG_INF("%d microphone audio read success %p %u.\n", ms, rx_block[ms], rx_size);
 		}
 
 	}
