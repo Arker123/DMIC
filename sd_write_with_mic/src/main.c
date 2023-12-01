@@ -2,6 +2,8 @@
  * Copyright (c) 2019 Tavish Naruka <tavishnaruka@gmail.com>
  *
  * SPDX-License-Identifier: Apache-2.0
+ * @ARNAV KHARBANDA
+ * @VINAY YADAV
  */
 
 /* Sample which uses the filesystem API and SDHC driver */
