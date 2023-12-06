@@ -24,14 +24,17 @@
 LOG_MODULE_REGISTER(main);
 
 // Audio params -----------------------------------
+
+#define PCM_OUTPUT_IN_ASCII		1
+
 #define AUDIO_FREQ		16000
 #define CHAN_SIZE		16
 #define PCM_BLK_SIZE_MS		((AUDIO_FREQ/1000) * sizeof(int16_t))
 
 #define READ_TIMEOUT_MS		2000
 
-// 1 seconds
-#define NUM_MS		5000
+// 5 seconds
+#define NUM_MS		1000
 
 // added some extra blocks: 2 for safety
 K_MEM_SLAB_DEFINE(rx_mem_slab, PCM_BLK_SIZE_MS, NUM_MS + 2, 1);
@@ -188,7 +191,7 @@ void main(void)
 	printk("Attempting to write to file...\n");
 	{
 		char filename[30];	
-		int write_index = 5555;
+		int write_index = 7777;
 
 		struct fs_file_t filep;
 		size_t bytes_written;
@@ -223,6 +226,22 @@ void main(void)
 			printk("Error closing file [%d]\n", res);
 		}
 	}
+
+	#ifdef PCM_OUTPUT_IN_ASCII	
+		printk("-- start\n");
+		int j;
+
+		for (i = 0; i < NUM_MS; i++) {
+			uint16_t *pcm_out = rx_block[i];
+
+			for (j = 0; j < rx_size/2; j++) {
+				printk("0x%04x, \n", pcm_out[j]);
+				k_sleep(K_MSEC(1));			
+			}
+			printk("-- mid\n");
+		}
+		printk("-- end\n");
+	#endif
 
 	// unmount the disk
 	// fs_unmount(&mp);
