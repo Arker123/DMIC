@@ -25,23 +25,22 @@ LOG_MODULE_REGISTER(main);
 
 // Audio params -----------------------------------
 
-#define PCM_OUTPUT_IN_ASCII		1
+// #define PCM_OUTPUT_IN_ASCII		1
 
-#define AUDIO_FREQ		16000
-#define CHAN_SIZE		16
-#define PCM_BLK_SIZE_MS		((AUDIO_FREQ/1000) * sizeof(int16_t))
+#define AUDIO_FREQ 16000
+#define CHAN_SIZE 16
+#define PCM_BLK_SIZE_MS ((AUDIO_FREQ / 1000) * sizeof(int16_t))
 
-#define READ_TIMEOUT_MS		2000
+#define READ_TIMEOUT_MS 2000
 
 // 5 seconds
-#define NUM_MS		1000
+#define NUM_MS 1000
 
 // added some extra blocks: 2 for safety
 K_MEM_SLAB_DEFINE(rx_mem_slab, PCM_BLK_SIZE_MS, NUM_MS + 2, 1);
 
 void *rx_block[NUM_MS];
 size_t rx_size = PCM_BLK_SIZE_MS;
-
 
 // SD params -----------------------------------
 static int lsdir(const char *path);
@@ -54,9 +53,9 @@ static struct fs_mount_t mp = {
 };
 
 /*
-*  Note the fatfs library is able to mount only strings inside _VOLUME_STRS
-*  in ffconf.h
-*/
+ *  Note the fatfs library is able to mount only strings inside _VOLUME_STRS
+ *  in ffconf.h
+ */
 static const char *disk_mount_pt = "/SD:";
 
 void main(void)
@@ -68,14 +67,15 @@ void main(void)
 
 	const struct device *const mic_dev = DEVICE_DT_GET(DT_NODELABEL(dmic_dev));
 
-	if (!device_is_ready(mic_dev)) {
+	if (!device_is_ready(mic_dev))
+	{
 		LOG_ERR("%s: device not ready.\n", mic_dev->name);
 		return 0;
 	}
 
 	struct pcm_stream_cfg stream = {
 		.pcm_width = CHAN_SIZE,
-		.mem_slab  = &rx_mem_slab,
+		.mem_slab = &rx_mem_slab,
 	};
 
 	struct dmic_cfg cfg = {
@@ -86,8 +86,8 @@ void main(void)
 			 */
 			.min_pdm_clk_freq = 1000000,
 			.max_pdm_clk_freq = 3500000,
-			.min_pdm_clk_dc   = 40,
-			.max_pdm_clk_dc   = 60,
+			.min_pdm_clk_dc = 40,
+			.max_pdm_clk_dc = 60,
 		},
 		.streams = &stream,
 		.channel = {
@@ -102,36 +102,42 @@ void main(void)
 	cfg.streams[0].block_size = PCM_BLK_SIZE_MS;
 
 	ret = dmic_configure(mic_dev, &cfg);
-	if (ret < 0) {
+	if (ret < 0)
+	{
 		LOG_ERR("microphone configuration error\n");
 		return 0;
 	}
-	else{
+	else
+	{
 		LOG_INF("microphone configuration success\n");
 	}
 	// ------------------
 
 	/* raw disk i/o */
-	do {
+	do
+	{
 		static const char *disk_pdrv = "SD";
 		uint64_t memory_size_mb;
 		uint32_t block_count;
 		uint32_t block_size;
 
-		if (disk_access_init(disk_pdrv) != 0) {
+		if (disk_access_init(disk_pdrv) != 0)
+		{
 			LOG_ERR("Storage init ERROR!");
 			break;
 		}
 
 		if (disk_access_ioctl(disk_pdrv,
-				DISK_IOCTL_GET_SECTOR_COUNT, &block_count)) {
+							  DISK_IOCTL_GET_SECTOR_COUNT, &block_count))
+		{
 			LOG_ERR("Unable to get sector count");
 			break;
 		}
 		LOG_INF("Block count %u", block_count);
 
 		if (disk_access_ioctl(disk_pdrv,
-				DISK_IOCTL_GET_SECTOR_SIZE, &block_size)) {
+							  DISK_IOCTL_GET_SECTOR_SIZE, &block_size))
+		{
 			LOG_ERR("Unable to get sector size");
 			break;
 		}
@@ -145,42 +151,58 @@ void main(void)
 
 	int res = fs_mount(&mp);
 
-	if (res == FR_OK) {
+	if (res == FR_OK)
+	{
 		printk("Disk mounted.\n");
 		lsdir(disk_mount_pt);
-	} else {
+	}
+	else
+	{
 		printk("Error mounting disk.\n");
 	}
 
 	// Audio get data ------------------
 	ret = dmic_trigger(mic_dev, DMIC_TRIGGER_START);
-	if (ret < 0) {
+	if (ret < 0)
+	{
 		LOG_ERR("microphone start trigger error\n");
 		return 0;
 	}
-	else{
+	else
+	{
 		LOG_INF("microphone start trigger success\n");
 	}
 
 	/* Acquire microphone audio */
-	for (ms = 0; ms < NUM_MS; ms++) {
+	printf("Recording...\n");
+	for (ms = 0; ms < NUM_MS; ms++)
+	{
 		ret = dmic_read(mic_dev, 0, &rx_block[ms], &rx_size, READ_TIMEOUT_MS);
-		if (ret < 0) {
+		if (ret < 0)
+		{
 			LOG_ERR("%d microphone audio read error %p %u.\n", ms, rx_block[ms], rx_size);
 			return 0;
 		}
-		else{
-			LOG_INF("%d mic success %p %u.\n", ms, rx_block[ms], rx_size);
+		else
+		{
+			// printk("\rIn progress %d", (ms/NUM_MS)*100);
+			if ((((ms*100)/NUM_MS)) % 10 == 0)
+			{
+				printf("#");
+			}
 		}
-
 	}
-	
+
+	printf("\n\n");
+
 	ret = dmic_trigger(mic_dev, DMIC_TRIGGER_STOP);
-	if (ret < 0) {
+	if (ret < 0)
+	{
 		LOG_ERR("microphone stop trigger error\n");
 		return 0;
 	}
-	else{
+	else
+	{
 		LOG_INF("microphone stop trigger success\n");
 	}
 	// ------------------------------------------
@@ -190,19 +212,20 @@ void main(void)
 
 	printk("Attempting to write to file...\n");
 	{
-		char filename[30];	
-		int write_index = 7777;
+		char filename[30];
+		int write_index = 8888;
 
 		struct fs_file_t filep;
 		size_t bytes_written;
 
 		fs_file_t_init(&filep);
 
-		sprintf(&filename, "/SD:/%d_01.txt", write_index);
+		sprintf(&filename, "/SD:/%d_01.raw", write_index);
 		fs_unlink(filename);
 
 		res = fs_open(&filep, filename, FS_O_CREATE | FS_O_WRITE | FS_O_APPEND);
-		if (res) {
+		if (res)
+		{
 			printk("Error opening file %s [%d]\n", filename, res);
 			return;
 		}
@@ -212,41 +235,59 @@ void main(void)
 		}
 
 		// write in chunks of 50ms
-		for (i = 0; i < NUM_MS/50; i++) {
-			res = fs_write(&filep, rx_block[i*50], rx_size*50);
-			if (res < 0) {
-				printk("Error writing file [%d]\n", res);
-			} else {
-				printk("%d bytes written to file\n", res);
+		for (i = 0; i < NUM_MS; i++)
+		{
+			uint32_t *pcm_out = rx_block[i];
+			for (int j = 0; j < rx_size / 4; j++)
+			{
+				// printk("Writing 0x%8x, \n", pcm_out[j]);
+
+				res = fs_write(&filep, &pcm_out[j], sizeof(uint32_t));
+				if (res < 0)
+				{
+					printk("Error writing file [%d]\n", res);
+				}
+				else
+				{
+					printk("%d bytes written to file\n", res);
+				}
 			}
 		}
 
 		res = fs_close(&filep);
-		if (res < 0) {
+		if (res < 0)
+		{
+			printk("%d %d", res, -ENOTSUP);
 			printk("Error closing file [%d]\n", res);
+			lsdir(disk_mount_pt);
 		}
 	}
 
-	#ifdef PCM_OUTPUT_IN_ASCII	
-		printk("-- start\n");
-		int j;
+	k_sleep(K_MSEC(2000));
 
-		for (i = 0; i < NUM_MS; i++) {
-			uint16_t *pcm_out = rx_block[i];
+#ifdef PCM_OUTPUT_IN_ASCII
+	printk("-- start\n");
+	int j;
 
-			for (j = 0; j < rx_size/2; j++) {
-				printk("0x%04x, \n", pcm_out[j]);
-				k_sleep(K_MSEC(1));			
-			}
-			printk("-- mid\n");
+	for (i = 0; i < NUM_MS; i++)
+	{
+		uint16_t *pcm_out = rx_block[i];
+
+		for (j = 0; j < rx_size / 2; j++)
+		{
+			printk("0x%04x, \n", pcm_out[j]);
+			k_sleep(K_MSEC(1));
 		}
-		printk("-- end\n");
-	#endif
+		printk("-- mid\n");
+	}
+	printk("-- end\n");
+#endif
 
 	// unmount the disk
 	// fs_unmount(&mp);
 
-	while (1) {
+	while (1)
+	{
 		k_sleep(K_MSEC(1000));
 	}
 }
@@ -261,26 +302,32 @@ static int lsdir(const char *path)
 
 	/* Verify fs_opendir() */
 	res = fs_opendir(&dirp, path);
-	if (res) {
+	if (res)
+	{
 		printk("Error opening dir %s [%d]\n", path, res);
 		return res;
 	}
 
 	printk("\nListing dir %s ...\n", path);
-	for (;;) {
+	for (;;)
+	{
 		/* Verify fs_readdir() */
 		res = fs_readdir(&dirp, &entry);
 
 		/* entry.name[0] == 0 means end-of-dir */
-		if (res || entry.name[0] == 0) {
+		if (res || entry.name[0] == 0)
+		{
 			break;
 		}
 
-		if (entry.type == FS_DIR_ENTRY_DIR) {
+		if (entry.type == FS_DIR_ENTRY_DIR)
+		{
 			printk("[DIR ] %s\n", entry.name);
-		} else {
+		}
+		else
+		{
 			printk("[FILE] %s (size = %zu)\n",
-				entry.name, entry.size);
+				   entry.name, entry.size);
 		}
 	}
 
